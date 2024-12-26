@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -221,6 +222,47 @@ class LectureControllerTest {
                 = userLectureHistoryRepository.findByLectureScheduleUid(lectureSchedule.getUid());
 
         assertEquals(30, userLectureHistoryList.size());
+    }
+
+    @Test
+    @DisplayName("회원 수강 신청 테스트 3 - 동일한 유저 정보로 같은 특강을 5번 신청했을 때, 1번만 성공")
+    void applyLecture_case3() {
+
+        User user = addUser("Test");
+        Lecture lecture = addLecture("Test", "Teacher");
+
+        LectureSchedule lectureSchedule = addLectureSchedule(LectureSchedule.builder()
+                .lecture(lecture)
+                .applyOpenDate(LocalDate.of(2024, 1, 1))
+                .applyCloseDate(LocalDate.of(2024, 12, 31))
+                .currentCapacity(0)
+                .maxCapacity(30)
+                .build());
+
+        // 비동기 thread pool 생성
+        ExecutorService executor = Executors.newFixedThreadPool(5);
+
+        // 비동기 요청 시작
+        List<CompletableFuture<Void>> futures = IntStream.range(0, 5)
+                .mapToObj(index -> CompletableFuture.runAsync(() -> {
+                    try {
+                        applyLecture(user, lectureSchedule);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }, executor))
+                .toList();
+
+        // 모든 비동기 작업이 완료될 때까지 대기
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        // 작업 완료 후 ExecutorService를 종료.
+        executor.shutdown();
+
+        List<UserLectureHistory> userLectureHistoryList
+                = userLectureHistoryRepository.findByLectureScheduleUidAndUserUserId(lectureSchedule.getUid(), user.getUserId());
+
+        assertEquals(1, userLectureHistoryList.size());
     }
 
     private void applyLecture(User user, LectureSchedule lectureSchedule) throws Exception {

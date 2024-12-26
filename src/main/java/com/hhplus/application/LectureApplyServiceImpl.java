@@ -36,6 +36,9 @@ public class LectureApplyServiceImpl implements LectureApplyService {
     // 수강 신청 가능 인원 검증
     validateMaxCapacity(lectureSchedule);
 
+    // 수강 신청 존재 여부 검증
+    validateExistUserLectureHistory(lectureScheduleUid, userId);
+
     // 수강 신청 저장
     UserLectureHistory userLectureHistory =
             UserLectureHistory.builder().lectureSchedule(lectureSchedule).user(user).build();
@@ -58,9 +61,16 @@ public class LectureApplyServiceImpl implements LectureApplyService {
             .orElseThrow(() -> new EntityNotFoundException("Lecture not found."));
   }
 
-  private void updateLectureSchedule(LectureSchedule lectureSchedule) {
-    lectureSchedule.plusCurrentCapacity();
-    lectureScheduleRepository.save(lectureSchedule);
+  private void validateExistUserLectureHistory(Long lectureScheduleUid, Long userId) {
+    boolean isReserved = existsByLectureScheduleUidAndUserId(lectureScheduleUid, userId);
+    if (isReserved) {
+      throw new IllegalArgumentException("reservation is exists.");
+    }
+  }
+
+  private boolean existsByLectureScheduleUidAndUserId(Long lectureScheduleUid, Long userId) {
+    return userLectureHistoryRepository.existsByLectureScheduleUidAndUserUserId(
+            lectureScheduleUid, userId);
   }
 
   private void validateMaxCapacity(LectureSchedule lectureSchedule) {
@@ -68,5 +78,10 @@ public class LectureApplyServiceImpl implements LectureApplyService {
     if (lectureSchedule.getCurrentCapacity() >= lectureSchedule.getMaxCapacity()) {
       throw new IllegalArgumentException("reservation is full.");
     }
+  }
+
+  private void updateLectureSchedule(LectureSchedule lectureSchedule) {
+    lectureSchedule.plusCurrentCapacity();
+    lectureScheduleRepository.save(lectureSchedule);
   }
 }

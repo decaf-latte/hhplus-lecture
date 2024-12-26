@@ -14,6 +14,9 @@ public interface UserLectureHistoryRepository extends JpaRepository<UserLectureH
 
     List<UserLectureHistory> findByUserUserId(Long userId, Pageable pageable);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    boolean existsByLectureScheduleUidAndUserUserId(Long lectureScheduleUid, Long userId);
+
     // 테스트 코드 검증 용
     @Transactional(readOnly = true)
     List<UserLectureHistory> findByLectureScheduleUidAndUserUserId(Long lectureScheduleUid, Long userId);

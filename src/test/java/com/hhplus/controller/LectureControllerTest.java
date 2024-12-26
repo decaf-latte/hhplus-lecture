@@ -23,7 +23,11 @@ import com.hhplus.repository.LectureScheduleRepository;
 import com.hhplus.repository.UserLectureHistoryRepository;
 import com.hhplus.repository.UserRepository;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -169,6 +173,69 @@ class LectureControllerTest {
                 = userLectureHistoryRepository.findByUserUserId(user.getUserId(), PageRequest.of(0, 100));
 
         assertEquals(1, userLectureHistoryList.size());
+    }
+
+    @Test
+    @DisplayName("회원 수강 신청 테스트 2 - 40명 특강 신청, 30명만 성공")
+    void applyLecture_case2() {
+
+        List<User> users = new ArrayList<>();
+
+        // User 40명 추가
+        for (int i = 1; i < 40; i++) {
+            User user = addUser("Test" + i);
+            users.add(user);
+        }
+
+        Lecture lecture = addLecture("Test", "Teacher");
+
+        LectureSchedule lectureSchedule = addLectureSchedule(LectureSchedule.builder()
+                .lecture(lecture)
+                .applyOpenDate(LocalDate.of(2024, 1, 1))
+                .applyCloseDate(LocalDate.of(2024, 12, 31))
+                .currentCapacity(0)
+                .maxCapacity(30)
+                .build());
+
+        // 비동기 thread pool 생성
+        ExecutorService executor = Executors.newFixedThreadPool(40);
+
+        // 비동기 요청 시작
+        List<CompletableFuture<Void>> futures = users.stream()
+                .map(user -> CompletableFuture.runAsync(() -> {
+                    try {
+                        applyLecture(user, lectureSchedule);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }, executor))
+                .toList();
+
+        // 모든 비동기 작업이 완료될 때까지 대기
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        // 작업 완료 후 ExecutorService를 종료.
+        executor.shutdown();
+
+        List<UserLectureHistory> userLectureHistoryList
+                = userLectureHistoryRepository.findByLectureScheduleUid(lectureSchedule.getUid());
+
+        assertEquals(30, userLectureHistoryList.size());
+    }
+
+    private void applyLecture(User user, LectureSchedule lectureSchedule) throws Exception {
+
+        LectureApplyRequestDTO requestDTO = LectureApplyRequestDTO.builder()
+                .lectureScheduleUid(lectureSchedule.getUid())
+                .userId(user.getUserId())
+                .build();
+
+        String requestBody = objectMapper.writeValueAsString(requestDTO);
+        String url = "/lectures/apply";
+        mockMvc.perform(post(url)
+                .contentType("application/json")
+                .content(requestBody)
+        );
     }
 
     private User addUser(String name) {

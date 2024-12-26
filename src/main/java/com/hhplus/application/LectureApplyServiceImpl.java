@@ -33,6 +33,9 @@ public class LectureApplyServiceImpl implements LectureApplyService {
     Long lectureScheduleUid = lectureApplyVO.getLectureScheduleUid();
     LectureSchedule lectureSchedule = getLectureScheduleByUid(lectureScheduleUid);
 
+    // 수강 신청 가능 인원 검증
+    validateMaxCapacity(lectureSchedule);
+
     // 수강 신청 저장
     UserLectureHistory userLectureHistory =
             UserLectureHistory.builder().lectureSchedule(lectureSchedule).user(user).build();
@@ -58,5 +61,12 @@ public class LectureApplyServiceImpl implements LectureApplyService {
   private void updateLectureSchedule(LectureSchedule lectureSchedule) {
     lectureSchedule.plusCurrentCapacity();
     lectureScheduleRepository.save(lectureSchedule);
+  }
+
+  private void validateMaxCapacity(LectureSchedule lectureSchedule) {
+
+    if (lectureSchedule.getCurrentCapacity() >= lectureSchedule.getMaxCapacity()) {
+      throw new IllegalArgumentException("reservation is full.");
+    }
   }
 }
